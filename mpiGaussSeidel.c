@@ -260,10 +260,11 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
    int count = 0;        /* 计数器, 迭代次数 */
    int own;              /* 单元的属主进程. */
    int i_glb;            /* 全局指标 */
+   int pos;              /* 当前指标 */
    int start;            /* x 开始的指标 */
-   int end;		 /* 循环结束的指标 */
-   int *map;		 /* 处理器编号的映射，采用局部的视角
-			  * 这样在写指标的时候，就可以避免出现 myrank */
+   int end;              /* 循环结束的指标 */
+   int *map;             /* 处理器编号的映射，采用局部的视角
+                          * 这样在写指标的时候，就可以避免出现 myrank */
    double xi;            /* 新 x_i, 为了算误差范数 */
    double xi_pre;        /* 旧 x_i */
    double err_norm2;     /* 相邻迭代结果之差的二范数 */
@@ -289,16 +290,14 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
          xi_pre = x[i_glb];
          xi = 0.0;            /* 这个值在计算迭代过程中累加 */
          /* 非阻塞的接收, 以实现计算与通讯的重叠 */
-         start = i_glb-np+1;                   /* 此时对i_glb_np
-                                                * 的写入是非法的 */
-         end = i_glb;
-         for (k = start; k < end; ++k){ /* k 也是全局指标, */
-            if ( !(k<0) ){
-               own = k%np; /* owner */
-               error = MPI_Irecv(x+k, 1, MPI_DOUBLE,
-                                 own, k, /* tag 的值与元素所在的位置相同. */
+         for (k = 1; k < np; ++k){
+            pos = i_glb - np + k; /* 接收的位置 */
+            if ( !(pos<0) ){
+               own = map[k];
+               error = MPI_Irecv(x+pos, 1, MPI_DOUBLE,
+                                 own, pos, /* tag 的值与元素所在的位置相同. */
                                  MPI_COMM_WORLD,
-                                 rreq+k-start+1 /* rreq 从 0 号位置开始编号 */
+                                 rreq+k /* rreq 从 0 号位置开始编号 */
                   );
             }
          }
@@ -308,14 +307,16 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
          start = i_glb;
          end = i_glb+size-np+1; /* 最后 np-1 个元素是要等待更新的 */
          for (k=start; k<end; ++k){
-            xi += mat(M_loc,size,i,k%size)*x[k%size];
+            pos = k%size;
+            xi += mat(M_loc,size,i,pos)*x[pos];
          }
          /* 这是需要等待其他进程更新的部分 */
-         start = i_glb+size-np+1;
-         end = i_glb+size;
-         for (k = start; k <end ; ++k){
-            error = MPI_Wait(rreq+k-start+1, sta+k-start+1);
-            xi += mat(M_loc,size,i,k%size)*x[k%size];
+         /* start = i_glb+size-np+1; */
+         /* end = i_glb+size; */
+         for (k = 1; k <np ; ++k){
+            pos = (i_glb - np + k +size)%size;
+            error = MPI_Wait(rreq+k, sta+k);
+            xi += mat(M_loc,size,i,pos)*x[pos];
          }
          xi+=g[i_glb];
          /* x_i 在此处已经算好 */
@@ -324,31 +325,32 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
          /* 先检测之前的 send 是否做完 */
          error = MPI_Waitall(np, sreq, sta);
          /* 将 x_i 分发到所有进程 */
-         for (k = 0; k < np; ++k)
-            if (k != myrank) /* 不需要对自己发数据 */
-               error = MPI_Isend(x+i_glb, 1, MPI_DOUBLE,
-                                 k, i_glb, MPI_COMM_WORLD, sreq+k);
+         for (k = 1; k < np; ++k){
+            error = MPI_Isend(x+i_glb, 1, MPI_DOUBLE,
+                              map[k], i_glb, MPI_COMM_WORLD, sreq+k);
+         }
          /* 相邻步之差的二范数 */
          err_norm2 += (xi-xi_pre)*(xi-xi_pre);
       }
+
       /* 完成消息传递, 要做这一步才能使所有进程中的 x 都得到更新 */
-      double offset = (myrank-l+1+np)%np; /* 到最后一个进程的偏移量 */
-      if (myrank == l-1)                  /* 第 l-1 号进程是最后一
-                                           * 个发数据的进程 */
-         offset = np;
-      start = size-np+offset;           /* np-offset 是需要做的循环的长度 */
-      end = size;
-      for (i = start; i < size; ++i){
-         own = i%np;
-         error = MPI_Irecv(x+i, 1, MPI_DOUBLE, own, i,
-                           MPI_COMM_WORLD,
-                           rreq+(myrank-l+np)%np-1+i-start);
-      } /* 完成一次迭代 */
+      i_glb = n_loc*np + myrank;
+      for (k = 1; k < np; ++k){
+         pos = i_glb - np + k; /* 接收的位置 */
+         if ( pos<size ){
+            own = map[k];
+            error = MPI_Irecv(x+pos, 1, MPI_DOUBLE,
+                              own, pos, /* tag 的值与元素所在的位置相同. */
+                              MPI_COMM_WORLD,
+                              rreq+k /* rreq 从 0 号位置开始编号 */
+               );
+         }
+      }
 
       error = MPI_Waitall(np, sreq, sta);
       error = MPI_Waitall(np, rreq, sta);
 
-/* 将所有的 err_norm2 求和 */
+      /* 将所有的 err_norm2 求和 */
       error = MPI_Allreduce(&err_norm2, &norm2, /* norm2 做为临时存储空间 */
                             1, MPI_DOUBLE,
                             MPI_SUM, MPI_COMM_WORLD);
@@ -357,9 +359,7 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
 
       count++;
 #if DEBUG
-
       printf("Proc %d, end of the %d loop\n", myrank, count);
-
 #endif /* DEBUG */
 #if TEST_FIRST
    } while ( err_norm2/norm2 > TOL);
@@ -376,12 +376,8 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
       free(M_loc);
    }
    free(g);
-   for (i = 0; i < np; ++i){
-      if (*(sreq+i) != MPI_REQUEST_NULL) /* NULL的是已经回收过内存的 */
-         error = MPI_Request_free(sreq+i);
-      if (*(rreq+i) != MPI_REQUEST_NULL)
-         error = MPI_Request_free(rreq+i);
-   }
+   free(sreq);
+   free(rreq);
    free(sta);
 
    return;
