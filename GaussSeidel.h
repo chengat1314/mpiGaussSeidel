@@ -23,10 +23,10 @@
 #define TEST_MAT 0		/* 使用实现给定的矩阵和右端向量 */
 #define DEBUG 0
 
-#define N 100			/* 矩阵规模 */
+#define SIZE 100			/* 矩阵规模 */
 
 #if TEST_MAT
-#define N 5                           /* 测试矩阵规模 */
+#define SIZE 5                           /* 测试矩阵规模 */
 #endif /* TEST_MAT */
 
 

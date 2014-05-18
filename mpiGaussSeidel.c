@@ -11,12 +11,11 @@
 #include <math.h>
 #include <gsl_blas.h>
 #include "GaussSeidel.h"
-#include "timer.h"
 
 int
 main(int argc, char *argv[]){
    int i,j;
-   int size = N;         /* 矩阵尺寸 */
+   int size = SIZE;         /* 矩阵尺寸 */
    int cond_GS;
    int myrank;
    int count;            /* 记录尝试获取矩阵的次数 */
@@ -102,7 +101,8 @@ main(int argc, char *argv[]){
 
 #endif /* DEBUG */
 
-   /* error = MPI_Finalize(); */
+   error = MPI_Finalize();
+   printf("After finalize\n");
 #if DEBUG
 
    if ( error != MPI_SUCCESS){
@@ -371,7 +371,7 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
              myrank, count);
    }
 #endif /* OUT_COUNT */
-
+   
    if (myrank == root){
       free(M_loc);
    }

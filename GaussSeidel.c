@@ -29,7 +29,7 @@ main(int argc, char *argv[]){
 #if TEST_GAUSSSEIDEL
 
      int i,j;
-     int size = N;         /* 矩阵尺寸 */
+     int size = SIZE;         /* 矩阵尺寸 */
      int cond_GS;
      double *A;            /* 系数矩阵 */
      double *x;            /* 方程组的解 */
@@ -85,7 +85,7 @@ main(int argc, char *argv[]){
 #if DEBUG_RANDOM_MAT
 
      int i,j,count;
-     int size = N;
+     int size = SIZE;
      int cond_GS;
      double *A;
 
@@ -122,7 +122,7 @@ main(int argc, char *argv[]){
 #if DEBUG_MAT_GET
      int i,j;
      double *A;
-     int size = N;
+     int size = SIZE;
 
      A = (double *)calloc(size*size, sizeof(double));
      mat_get(A, size);
