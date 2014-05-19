@@ -210,7 +210,7 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
 
       int ext_row;
       int lb_row;
-      error = MPI_Type_get_extent(row, &lb_row, &ext_row);
+      /* error = MPI_Type_get_extent(row, &lb_row, &ext_row); */
       /* printf("ext_row = %d\n", ext_row); */
       /* MPI_Type_create_resized(T_locl, 0, ext_row, &T_locl); */
       /* MPI_Type_create_resized(T_locs, 0, ext_row, &T_locs); */
