@@ -158,7 +158,6 @@ main(int argc, char *argv[]){
  */
 void
 mpiGaussSeidel(double *A, double *b, double *x, int size){
-
    int error;
 #if DEBUG
 
@@ -283,10 +282,11 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
    double err_norm2;     /* 相邻迭代结果之差的二范数 */
    double norm2;         /* 迭代向量的二范数 */
    gsl_vector_view x_view = gsl_vector_view_array(x, size);
-   map = (int *)calloc(np-1, sizeof(int));
+   map = (int *)calloc(np, sizeof(int));
    for (i = 1; i < np; ++i){
       map[i]=(myrank + i)%np;
    }
+
 #if DEBUG
    printf("Before mpiGS\n");
 #endif /* DEBUG */
@@ -392,6 +392,5 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
    free(sreq);
    free(rreq);
    free(sta);
-
    return;
 }
