@@ -14,7 +14,7 @@
 #define mat(M,len,i,j) (*(M+i*len+j)) /* 将一维数组读为矩阵 */
 
 /* 这些参数决定了需要编译的部分 */
-#define USEMPI 1		/* 是否使用 mpi 版本的 GS迭代 */
+#define USEMPI 0		/* 是否使用 mpi 版本的 GS迭代 */
 #define OUT_MAT 0		/* 是否打印出生成的矩阵和向量 */
 #define OUT_X 0			/* 是否打印出结果 */
 #define OUT_MLOC 0		/* 输出迭代矩阵 M 以及局部矩阵 M_loc */

@@ -11,21 +11,26 @@
 #include <math.h>
 #include <gsl_blas.h>
 #include "GaussSeidel.h"
+#include "timer.h"
+
+int myrank;                     /* 进程号 */
+int np;                         /* 处理器个数 */
 
 int
 main(int argc, char *argv[]){
    int i,j;
    int size = SIZE;         /* 矩阵尺寸 */
    int cond_GS;
-   int myrank;
    int count;            /* 记录尝试获取矩阵的次数 */
    int error;
+   double tstart, tfinish, telapsed; /* 计算时间 */
    double *A;            /* 系数矩阵 */
    double *x;            /* 方程组的解 */
    double *b;            /* 右端向量 */
 
    MPI_Init(&argc, &argv);
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+   MPI_Comm_size(MPI_COMM_WORLD, &np);
    if (myrank == 0){
       A = (double *)calloc(size*size, sizeof(double));
       b = (double *)calloc(size, sizeof(double));
@@ -68,11 +73,29 @@ main(int argc, char *argv[]){
 
    MPI_Barrier(MPI_COMM_WORLD);
 
+
 #if USEMPI
+   /* 开始记录运算时间 */
+   GET_TIME(tstart);
+
    mpiGaussSeidel(A, b, x, size);
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   GET_TIME(tfinish);
+   telapsed = tfinish - tstart;
+   printf("mpiGaussSeidel finish! np = %d,  elapsed = %e seconds\n",
+          np, telapsed);
+
 #else
    if (myrank == 0){
+      /* 开始记录运算时间 */
+      GET_TIME(tstart);
+
       GaussSeidel(A, b, x, size);
+
+      GET_TIME(tfinish);
+      telapsed = tfinish - tstart;
+      printf("GaussSeidel, elapsed = %e seconds\n", telapsed);
    }
 #endif /* USEMPI */
 
@@ -91,10 +114,10 @@ main(int argc, char *argv[]){
    }
 
    fflush(stdout);
-   MPI_Barrier(MPI_COMM_WORLD);
-   printf("proc %d, final\n", myrank);
 #if DEBUG
 
+   MPI_Barrier(MPI_COMM_WORLD);
+   printf("proc %d, final\n", myrank);
    char message[MPI_MAX_ERROR_STRING];
    int meslen;
    error = MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
@@ -102,9 +125,9 @@ main(int argc, char *argv[]){
 #endif /* DEBUG */
 
    error = MPI_Finalize();
-   printf("After finalize\n");
 #if DEBUG
 
+   printf("After finalize\n");
    if ( error != MPI_SUCCESS){
       MPI_Error_string(error, message, &meslen);
       printf("line %d, error code is %d, message: %s\n",
@@ -146,16 +169,12 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
 #endif /* DEBUG */
 
    int i,j,k;
-   int myrank, np;       /* 进程号, 进程数 */
    int l;                /* l = size%np 不能统一分配部分的大小 */
    int n_loc;            /* 该进程存储的行数 */
    double *M_loc;         /* 进程存储的矩阵部分 */
    int root = 0;         /* 根进程 */
    double *g;            /* g = (D-L)^{-1}*b */
    g = (double *)calloc(size, sizeof(double));
-
-   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-   MPI_Comm_size(MPI_COMM_WORLD, &np);
 
    MPI_Request *sreq = (MPI_Request *)calloc(np, sizeof(MPI_Request));
    MPI_Request *rreq = (MPI_Request *)calloc(np, sizeof(MPI_Request));
@@ -208,12 +227,6 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
       error = MPI_Type_vector(size/np+1, 1, np, row, &T_locl);
       error = MPI_Type_vector(size/np, 1, np, row, &T_locs);
 
-      int ext_row;
-      int lb_row;
-      /* error = MPI_Type_get_extent(row, &lb_row, &ext_row); */
-      /* printf("ext_row = %d\n", ext_row); */
-      /* MPI_Type_create_resized(T_locl, 0, ext_row, &T_locl); */
-      /* MPI_Type_create_resized(T_locs, 0, ext_row, &T_locs); */
       error = MPI_Type_commit(&T_locs);
       error = MPI_Type_commit(&T_locl);
 
@@ -371,7 +384,7 @@ mpiGaussSeidel(double *A, double *b, double *x, int size){
              myrank, count);
    }
 #endif /* OUT_COUNT */
-   
+
    if (myrank == root){
       free(M_loc);
    }
